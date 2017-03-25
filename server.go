@@ -21,26 +21,26 @@ const (
 )
 
 // ListenerFunc represents the listener func
-type ListenerFunc func(s *UDPServer, eventName string, payload json.RawMessage, addr *net.UDPAddr) error
+type ListenerFunc func(s *Server, eventName string, payload json.RawMessage, addr *net.UDPAddr) error
 
-// UDPServer represents an UDP server
-type UDPServer struct {
+// Server represents an UDP server
+type Server struct {
 	addr      *net.UDPAddr
 	conn      *net.UDPConn
 	listeners map[string][]ListenerFunc
 	Logger    xlog.Logger
 }
 
-// NewUDPServer returns a new UDP server
-func NewUDPServer() *UDPServer {
-	return &UDPServer{
+// NewServer returns a new UDP server
+func NewServer() *Server {
+	return &Server{
 		listeners: make(map[string][]ListenerFunc),
 		Logger:    xlog.NopLogger,
 	}
 }
 
 // Init initializes the server
-func (s *UDPServer) Init(addr string) (err error) {
+func (s *Server) Init(addr string) (err error) {
 	// Resolve addr
 	if s.addr, err = net.ResolveUDPAddr("udp4", addr); err != nil {
 		return
@@ -49,14 +49,14 @@ func (s *UDPServer) Init(addr string) (err error) {
 }
 
 // Close closes the server
-func (s *UDPServer) Close() {
+func (s *Server) Close() {
 	if s.conn != nil {
 		s.conn.Close()
 	}
 }
 
 // ListenAndRead listens and reads from the server
-func (s *UDPServer) ListenAndRead() {
+func (s *Server) ListenAndRead() {
 	// For loop to handle reconnecting
 	var err error
 	for {
@@ -85,7 +85,7 @@ func (s *UDPServer) ListenAndRead() {
 }
 
 // Listen listens to the addr
-func (s *UDPServer) Listen() (err error) {
+func (s *Server) Listen() (err error) {
 	// Make sure the previous conn is closed
 	if s.conn != nil {
 		s.conn.Close()
@@ -98,12 +98,12 @@ func (s *UDPServer) Listen() (err error) {
 
 // Event represents an event sent between a client and a server
 type Event struct {
-	Name    string `json:"name"`
-	Payload interface{}
+	Name    string      `json:"name"`
+	Payload interface{} `json:"payload"`
 }
 
 // Write writes an event to the specific addr
-func (s *UDPServer) Write(eventName string, payload interface{}, addr *net.UDPAddr) (err error) {
+func (s *Server) Write(eventName string, payload interface{}, addr *net.UDPAddr) (err error) {
 	// Marshal
 	var b []byte
 	if b, err = json.Marshal(Event{Payload: payload, Name: eventName}); err != nil {
@@ -124,7 +124,7 @@ type EventRead struct {
 }
 
 // Read reads from the server
-func (s *UDPServer) Read() error {
+func (s *Server) Read() error {
 	defer s.executeListeners(EventNameDisconnect, json.RawMessage{}, nil)
 
 	var buf = make([]byte, maxMessageSize)
@@ -137,23 +137,26 @@ func (s *UDPServer) Read() error {
 			return err
 		}
 
-		// Unmarshal event
-		var e EventRead
-		if err = json.Unmarshal(buf[:n], &e); err != nil {
-			s.Logger.Errorf("%s while unmarshaling %s", buf[:n])
-			continue
-		}
+		// Execute the rest in a goroutine
+		go func(n int, addr *net.UDPAddr, buf []byte) {
+			// Unmarshal event
+			var e EventRead
+			if err = json.Unmarshal(buf[:n], &e); err != nil {
+				s.Logger.Errorf("%s while unmarshaling %s", buf[:n])
+				return
+			}
 
-		// Execute listeners
-		if err = s.executeListeners(e.Name, e.Payload, addr); err != nil {
-			s.Logger.Errorf("%s while executing listeners of event %+v for addr %s", err, e, addr)
-			continue
-		}
+			// Execute listeners
+			if err = s.executeListeners(e.Name, e.Payload, addr); err != nil {
+				s.Logger.Errorf("%s while executing listeners of event %+v for addr %s", err, e, addr)
+				return
+			}
+		}(n, addr, buf)
 	}
 }
 
 // executeListeners executes listeners for a specific event
-func (s *UDPServer) executeListeners(eventName string, payload json.RawMessage, addr *net.UDPAddr) (err error) {
+func (s *Server) executeListeners(eventName string, payload json.RawMessage, addr *net.UDPAddr) (err error) {
 	for _, l := range s.listeners[eventName] {
 		if err = l(s, eventName, payload, addr); err != nil {
 			return
@@ -163,11 +166,11 @@ func (s *UDPServer) executeListeners(eventName string, payload json.RawMessage, 
 }
 
 // AddListener adds a listener
-func (s *UDPServer) AddListener(eventType string, l ListenerFunc) {
+func (s *Server) AddListener(eventType string, l ListenerFunc) {
 	s.listeners[eventType] = append(s.listeners[eventType], l)
 }
 
 // SetListener sets a listener
-func (s *UDPServer) SetListener(eventType string, l ListenerFunc) {
+func (s *Server) SetListener(eventType string, l ListenerFunc) {
 	s.listeners[eventType] = []ListenerFunc{l}
 }
