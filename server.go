@@ -16,8 +16,7 @@ const (
 
 // Event names
 const (
-	EventNameStart      = "astiudp.start"
-	EventNameDisconnect = "astiudp.disconnect"
+	EventNameStart = "astiudp.start"
 )
 
 // ListenerFunc represents the listener func
