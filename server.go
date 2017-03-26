@@ -5,6 +5,8 @@ import (
 	"net"
 	"time"
 
+	"errors"
+
 	"github.com/rs/xlog"
 )
 
@@ -104,6 +106,12 @@ type Event struct {
 
 // Write writes an event to the specific addr
 func (s *Server) Write(eventName string, payload interface{}, addr *net.UDPAddr) (err error) {
+	// No valid connection
+	if s.conn == nil {
+		err = errors.New("No valid connection")
+		return
+	}
+
 	// Marshal
 	var b []byte
 	if b, err = json.Marshal(Event{Payload: payload, Name: eventName}); err != nil {
