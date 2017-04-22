@@ -7,7 +7,7 @@ import (
 
 	"errors"
 
-	"github.com/rs/xlog"
+	"github.com/asticode/go-astilog"
 )
 
 // Constants
@@ -30,14 +30,14 @@ type Server struct {
 	addr      *net.UDPAddr
 	conn      *net.UDPConn
 	listeners map[string][]ListenerFunc
-	Logger    xlog.Logger
+	Logger    astilog.Logger
 }
 
 // NewServer returns a new UDP server
 func NewServer() *Server {
 	return &Server{
 		listeners: make(map[string][]ListenerFunc),
-		Logger:    xlog.NopLogger,
+		Logger:    astilog.NopLogger,
 	}
 }
 
