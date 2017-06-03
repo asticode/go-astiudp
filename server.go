@@ -30,15 +30,11 @@ type Server struct {
 	addr      *net.UDPAddr
 	conn      *net.UDPConn
 	listeners map[string][]ListenerFunc
-	Logger    astilog.Logger
 }
 
 // NewServer returns a new UDP server
 func NewServer() *Server {
-	return &Server{
-		listeners: make(map[string][]ListenerFunc),
-		Logger:    astilog.NopLogger,
-	}
+	return &Server{listeners: make(map[string][]ListenerFunc)}
 }
 
 // Init initializes the server
@@ -64,22 +60,22 @@ func (s *Server) ListenAndRead() {
 	for {
 		// Listen
 		if err = s.Listen(); err != nil {
-			s.Logger.Errorf("%s while listen to %s, sleeping %s before retrying", err, s.addr, sleepError)
+			astilog.Errorf("%s while listen to %s, sleeping %s before retrying", err, s.addr, sleepError)
 			time.Sleep(sleepError)
 			continue
 		}
-		s.Logger.Debugf("Listening on %s", s.addr)
+		astilog.Debugf("Listening on %s", s.addr)
 
 		// Execute start listeners
 		if err = s.executeListeners(EventNameStart, json.RawMessage{}, nil); err != nil {
-			s.Logger.Errorf("%s while executing start listeners, sleeping %s before retrying", err, s.addr, sleepError)
+			astilog.Errorf("%s while executing start listeners, sleeping %s before retrying", err, s.addr, sleepError)
 			time.Sleep(sleepError)
 			continue
 		}
 
 		// Read
 		if err = s.Read(); err != nil {
-			s.Logger.Errorf("%s while reading from %s, sleeping %s before retrying", err, s.addr, sleepError)
+			astilog.Errorf("%s while reading from %s, sleeping %s before retrying", err, s.addr, sleepError)
 			time.Sleep(sleepError)
 			continue
 		}
@@ -150,13 +146,13 @@ func (s *Server) Read() error {
 			// Unmarshal event
 			var e EventRead
 			if err = json.Unmarshal(buf[:n], &e); err != nil {
-				s.Logger.Errorf("%s while unmarshaling %s", buf[:n])
+				astilog.Errorf("%s while unmarshaling %s", buf[:n])
 				return
 			}
 
 			// Execute listeners
 			if err = s.executeListeners(e.Name, e.Payload, addr); err != nil {
-				s.Logger.Errorf("%s while executing listeners of event %+v for addr %s", err, e, addr)
+				astilog.Errorf("%s while executing listeners of event %+v for addr %s", err, e, addr)
 				return
 			}
 		}(n, addr, buf)
